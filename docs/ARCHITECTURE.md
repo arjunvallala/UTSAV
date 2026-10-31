@@ -18,7 +18,7 @@ The domain package owns event validation, budget allocation, readiness and sched
 
 1. The browser validates a request shape through the same-origin assistant route.
 2. The route rejects oversized bodies, cross-origin requests and excessive per-process requests.
-3. The server bounds user text and event context, calls Gemini with a central system prompt, then validates structured JSON with Zod.
+3. The server bounds user text and compact event context, excludes saved names and supplier labels, calls Gemini with a central system prompt, then validates structured JSON with Zod.
 4. AI responses are displayed as advice; plan edits require an explicit user action. Financial arithmetic and readiness never call AI.
 
 ## Known boundaries

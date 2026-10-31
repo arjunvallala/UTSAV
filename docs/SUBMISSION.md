@@ -14,22 +14,22 @@ Provider: Google Gemini, using `@google/genai`. Default model: `gemini-3.8-flash
 
 ## Evaluation traceability
 
-| Criterion         | Evidence                                                                                        | Current status                                         |
-| ----------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| Code quality      | strict TS, domain/UI/AI separation, schemas                                                     | Implemented baseline                                   |
-| Security          | request bounds, same-origin, headers, server key                                                | Partial; distributed quota and scans remain            |
-| Efficiency        | compact context, memoized dashboard state, response cache                                       | Partial; cache is process-local                        |
-| Testing           | deterministic domain unit tests                                                                 | Partial; no browser, axe, AI eval or coverage evidence |
-| Accessibility     | focus, labels, semantics, reduced motion, responsive layout                                     | Partial; axe and manual audit outstanding              |
-| Problem alignment | planning dashboard, budget, tasks, vendor shortlist slots, ideas, readiness, simulator, exports | Partial; intake and several workflow details remain    |
+| Criterion         | Evidence                                                                                    | Current status                                         |
+| ----------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Code quality      | strict TS, domain/UI/AI separation, schemas                                                 | Implemented baseline                                   |
+| Security          | request bounds, same-origin, headers, server key                                            | Partial; distributed quota and scans remain            |
+| Efficiency        | compact context, memoized dashboard state, response cache                                   | Partial; cache is process-local                        |
+| Testing           | deterministic domain unit tests                                                             | Partial; no browser, axe, AI eval or coverage evidence |
+| Accessibility     | focus, labels, semantics, reduced motion, responsive layout                                 | Partial; axe and manual audit outstanding              |
+| Problem alignment | event details intake, budget, tasks, vendor shortlist, ideas, readiness, simulator, exports | Partial; several workflow details remain               |
 
 ## Test evidence
 
-See [TESTING.md](./TESTING.md). Record actual commands/results here after running them; no successful result is claimed yet.
+See [TESTING.md](./TESTING.md) for recorded command output and remaining test gaps.
 
 ## Limitations
 
-No full event intake form, real task dependency editor, event-day time grid, vendor payment/deposit ledger, PDF export, actual Gemini credential validation, Playwright/axe pipeline, GitHub Actions, Docker or Cloud Run smoke test yet. Multi-process daily AI quotas require shared infrastructure.
+The event intake covers the core fields but does not yet generate smart suggestions while users type or localize all interface copy. Timeline templates, dependency editing, event-day schedule and reminder workflows are limited. Vendor quote, deposit and paid values are editable, but payment reminders and contract review checklist UI are not implemented. There is no PDF export, actual Gemini credential validation, Playwright/axe run, Cloud Run smoke test or shared daily AI quota. The CI workflow is present but has not been run by GitHub Actions.
 
 ## Two-minute demonstration script
 

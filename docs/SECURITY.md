@@ -9,7 +9,7 @@ Protect the Gemini credential, prevent malformed or oversized requests, limit au
 - Gemini key is read only in server code from `GEMINI_API_KEY`; never prefix it with `NEXT_PUBLIC_`.
 - Strict request and response schemas, 12 KB body limit, 2,000 character prompt bound and generic API errors.
 - Same-origin check, per-process 20 requests/minute limiter, and response security headers including CSP, frame denial, and MIME sniffing protection.
-- Compact context allowlist excludes contact details and identifiers. Plans are stored in localStorage and not logged.
+- Compact context contains event type, city, budget/currency, theme/preferences and aggregate task/vendor counts; saved event names, task titles, vendor identities, contacts and individual quotes are excluded. The message the user types is sent as written, so the assistant panel tells them to avoid names and contact details. Plans are stored in localStorage and not logged.
 - One output validation attempt; invalid response/provider errors fall back to deterministic guidance.
 
 ## Residual risks

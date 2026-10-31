@@ -44,13 +44,8 @@ import {
 import { deleteAllData } from "@/lib/storage";
 import { useEventPlan, useToday } from "@/lib/useEventPlan";
 import { calendar, download } from "@/lib/exports";
+import { EventSchema, type EventPlan } from "@/domain/schema";
 type Tab = "Overview" | "Budget" | "Timeline" | "Vendors" | "Ideas";
-const money = (n: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(n);
 const relative = (date: string) => {
   const diff = Math.ceil(
     (new Date(date).getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000,
@@ -80,12 +75,21 @@ export default function Dashboard() {
         "",
     ),
     [notice, setNotice] = useState(""),
+    [showIntake, setShowIntake] = useState(false),
+    [intakeDraft, setIntakeDraft] = useState<EventPlan>(sampleWedding),
+    [intakeError, setIntakeError] = useState(""),
     [proposal, setProposal] = useState<{
       from: string;
       to: string;
       ids: string[];
     } | null>(null),
     [menuOpen, setMenuOpen] = useState(false);
+  const money = (amount: number) =>
+    new Intl.NumberFormat(event.currency === "INR" ? "en-IN" : "en-US", {
+      style: "currency",
+      currency: event.currency,
+      maximumFractionDigits: 0,
+    }).format(amount);
   const stats = useMemo(() => readiness(event), [event]);
   const countdown = Math.max(
     0,
@@ -119,6 +123,47 @@ export default function Dashboard() {
     setNotice(s);
     setTimeout(() => setNotice(""), 3200);
   };
+  const updateVendor = (
+    id: string,
+    updates: Partial<(typeof sampleWedding.vendors)[number]>,
+  ) =>
+    setEvent((current) => ({
+      ...current,
+      vendors: current.vendors.map((vendor) =>
+        vendor.id === id ? { ...vendor, ...updates } : vendor,
+      ),
+    }));
+  const saveIntake = () => {
+    const validation = EventSchema.safeParse(intakeDraft);
+    if (!validation.success) {
+      setIntakeError(
+        validation.error.issues[0]?.message || "Review the event details.",
+      );
+      return;
+    }
+    const delta =
+      new Date(validation.data.date + "T00:00:00Z").getTime() -
+      new Date(event.date + "T00:00:00Z").getTime();
+    const shifted = {
+      ...validation.data,
+      tasks: validation.data.tasks.map((task) =>
+        task.status === "done" || delta === 0
+          ? task
+          : {
+              ...task,
+              dueDate: new Date(
+                new Date(task.dueDate + "T00:00:00Z").getTime() + delta,
+              )
+                .toISOString()
+                .slice(0, 10),
+            },
+      ),
+    };
+    setEvent(shifted);
+    setShowIntake(false);
+    setIntakeError("");
+    setMsg("Event details saved on this device.");
+  };
   const send = async (text = message) => {
     if (!text.trim()) return;
     setLoading(true);
@@ -130,27 +175,28 @@ export default function Dashboard() {
         body: JSON.stringify({
           message: text,
           context: {
-            name: event.name,
             type: event.type,
             city: event.city,
             guestCount: event.guestCount,
             budget: event.budget,
+            currency: event.currency,
             theme: event.theme,
             preferences: event.preferences,
             dietary: event.dietary,
             accessibility: event.accessibility,
-            tasks: event.tasks.map((t) => ({
-              title: t.title,
-              status: t.status,
-              critical: t.critical,
-              dueDate: t.dueDate,
-            })),
-            vendors: event.vendors.map((v) => ({
-              category: v.category,
-              status: v.status,
-              quote: v.quote,
-              budget: v.budget,
-            })),
+            planning: {
+              taskCount: event.tasks.length,
+              completedTasks: done,
+              openCriticalTasks: event.tasks.filter(
+                (t) => t.critical && t.status !== "done",
+              ).length,
+              overdueTasks: event.tasks.filter((t) => t.status === "overdue")
+                .length,
+              vendorCount: event.vendors.length,
+              bookedVendors: event.vendors.filter((v) =>
+                ["booked", "paid"].includes(v.status),
+              ).length,
+            },
           },
         }),
       });
@@ -388,22 +434,38 @@ export default function Dashboard() {
                 A little progress today makes a beautiful celebration tomorrow.
               </p>
             </div>
-            <button
-              className="date-chip"
-              onClick={() =>
-                download("utsav-timeline.ics", calendar(event), "text/calendar")
-              }
-            >
-              <CalendarDays size={16} />
-              <span>
-                {new Intl.DateTimeFormat("en-IN", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                }).format(new Date(event.date))}
-              </span>
-              <ArrowUpRight size={14} />
-            </button>
+            <div className="welcome-actions">
+              <button
+                className="button-secondary event-edit-button"
+                onClick={() => {
+                  setIntakeDraft(event);
+                  setIntakeError("");
+                  setShowIntake(true);
+                }}
+              >
+                Edit event details
+              </button>
+              <button
+                className="date-chip"
+                onClick={() =>
+                  download(
+                    "utsav-timeline.ics",
+                    calendar(event),
+                    "text/calendar",
+                  )
+                }
+              >
+                <CalendarDays size={16} />
+                <span>
+                  {new Intl.DateTimeFormat("en-IN", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  }).format(new Date(event.date + "T00:00:00"))}
+                </span>
+                <ArrowUpRight size={14} />
+              </button>
+            </div>
           </div>
           {notice && (
             <div className="toast" role="status">
@@ -765,10 +827,23 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <span>Protected reserve</span>
-                  <strong>{money(Math.round(event.budget * 0.04))}</strong>
+                  <strong>
+                    {money(
+                      alloc.find((item) => item.category === "contingency")
+                        ?.amount ?? 0,
+                    )}
+                  </strong>
                   <small>Set aside for the unexpected</small>
                 </div>
               </section>
+              {event.actualSpend > event.budget && (
+                <div className="overspend-alert" role="status">
+                  <ShieldCheck size={16} />
+                  Actual spending is {money(event.actualSpend - event.budget)}
+                  over your planned budget. Review your allocations before
+                  booking more.
+                </div>
+              )}
               <div className="scenario-row">
                 {(["Economical", "Balanced", "Premium"] as Scenario[]).map(
                   (s) => (
@@ -849,11 +924,11 @@ export default function Dashboard() {
                     onClick={() =>
                       setEvent((e) => ({
                         ...e,
-                        actualSpend: Math.min(e.budget, e.actualSpend + 25000),
+                        actualSpend: e.actualSpend + 25000,
                       }))
                     }
                   >
-                    <Plus size={14} /> Log ₹25,000 actual
+                    <Plus size={14} /> Log {money(25000)} actual
                   </button>
                 </div>
                 <div className="compare-bars">
@@ -1041,6 +1116,30 @@ export default function Dashboard() {
                   Only details you or your planner provide appear here. No
                   invented ratings, contacts or quotes.
                 </p>
+                <button
+                  className="button-primary vendor-add"
+                  onClick={() => {
+                    setEvent((current) => ({
+                      ...current,
+                      vendors: [
+                        ...current.vendors,
+                        {
+                          id: `vendor-${Date.now()}`,
+                          name: "New vendor — add name",
+                          category: "Other",
+                          status: "researching",
+                          quote: null,
+                          budget: 0,
+                          deposit: 0,
+                          paidAmount: 0,
+                        },
+                      ],
+                    }));
+                    setMsg("A vendor shortlist slot was added.");
+                  }}
+                >
+                  <Plus size={15} /> Add a vendor
+                </button>
               </div>
               <div className="vendor-grid">
                 {event.vendors.map((v) => (
@@ -1052,13 +1151,64 @@ export default function Dashboard() {
                       </span>
                     </div>
                     <span className="vendor-category">{v.category}</span>
-                    <h3>{v.name}</h3>
-                    <div className="vendor-quote">
+                    <label className="vendor-field">
+                      <span>Category</span>
+                      <select
+                        aria-label={`${v.name} vendor category`}
+                        value={v.category}
+                        onChange={(e) =>
+                          updateVendor(v.id, { category: e.target.value })
+                        }
+                      >
+                        {[
+                          "Venue",
+                          "Catering",
+                          "Decor",
+                          "Photography",
+                          "Attire",
+                          "Entertainment",
+                          "Logistics",
+                          "Other",
+                        ].map((category) => (
+                          <option key={category}>{category}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="vendor-field">
+                      <span>Supplier name</span>
+                      <input
+                        value={v.name}
+                        maxLength={160}
+                        aria-label={`${v.category} supplier name`}
+                        onChange={(e) =>
+                          updateVendor(v.id, { name: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label className="vendor-field">
                       <span>Quoted amount</span>
-                      <b>
-                        {v.quote === null ? "Not received" : money(v.quote)}
-                      </b>
-                    </div>
+                      <input
+                        type="number"
+                        min="0"
+                        max="1000000000000"
+                        value={v.quote ?? ""}
+                        placeholder="Not received"
+                        aria-label={`${v.category} quoted amount`}
+                        onChange={(e) =>
+                          updateVendor(v.id, {
+                            quote:
+                              e.target.value === ""
+                                ? null
+                                : Number(e.target.value),
+                            status:
+                              e.target.value !== "" &&
+                              v.status === "researching"
+                                ? "quoted"
+                                : v.status,
+                          })
+                        }
+                      />
+                    </label>
                     <div className="vendor-quote">
                       <span>Category allocation</span>
                       <b>{money(v.budget)}</b>
@@ -1072,25 +1222,59 @@ export default function Dashboard() {
                         />
                       </div>
                     )}
+                    <label className="vendor-field">
+                      <span>Deposit paid</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="1000000000000"
+                        value={v.deposit}
+                        aria-label={`${v.category} deposit paid`}
+                        onChange={(e) =>
+                          updateVendor(v.id, {
+                            deposit: Number(e.target.value) || 0,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="vendor-field">
+                      <span>Total paid</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="1000000000000"
+                        value={v.paidAmount}
+                        aria-label={`${v.category} total paid`}
+                        onChange={(e) =>
+                          updateVendor(v.id, {
+                            paidAmount: Number(e.target.value) || 0,
+                          })
+                        }
+                      />
+                    </label>
+                    {v.quote !== null && v.quote > v.paidAmount && (
+                      <div className="vendor-balance">
+                        {money(v.quote - v.paidAmount)} remaining on quote
+                      </div>
+                    )}
                     <div className="vendor-buttons">
-                      <button onClick={() => setChatOpen(true)}>
+                      <button
+                        onClick={() => {
+                          setMessage(
+                            `Help me draft clear questions for our ${v.category.toLowerCase()} supplier.`,
+                          );
+                          setChatOpen(true);
+                        }}
+                      >
                         <MessageCircle size={14} /> Draft questions
                       </button>
                       <select
                         aria-label={`Update ${v.name} status`}
                         value={v.status}
                         onChange={(e) =>
-                          setEvent((ev) => ({
-                            ...ev,
-                            vendors: ev.vendors.map((x) =>
-                              x.id === v.id
-                                ? {
-                                    ...x,
-                                    status: e.target.value as typeof x.status,
-                                  }
-                                : x,
-                            ),
-                          }))
+                          updateVendor(v.id, {
+                            status: e.target.value as typeof v.status,
+                          })
                         }
                       >
                         <option value="researching">Researching</option>
@@ -1178,7 +1362,7 @@ export default function Dashboard() {
                             ...e,
                             pinnedIdeas: e.pinnedIdeas.includes(idea.title)
                               ? e.pinnedIdeas.filter((x) => x !== idea.title)
-                              : [...e.pinnedIdeas, idea.title],
+                              : [...e.pinnedIdeas, idea.title].slice(-50),
                           }))
                         }
                       >
@@ -1271,8 +1455,9 @@ export default function Dashboard() {
             </button>
           </div>
           <div className="privacy-note">
-            <ShieldCheck size={14} /> Event details are sent only when you ask.
-            No personal identifiers are shared.
+            <ShieldCheck size={14} /> A small planning summary is sent only when
+            you ask. Saved names and contact details are excluded; avoid adding
+            them to your message.
           </div>
           <div className="chat-content">
             <div className="assistant-message">
@@ -1352,6 +1537,252 @@ export default function Dashboard() {
             </button>
           </form>
         </aside>
+      )}
+      {showIntake && (
+        <div className="modal-backdrop" onClick={() => setShowIntake(false)}>
+          <section
+            className="modal intake-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="intake-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="modal-close"
+              onClick={() => setShowIntake(false)}
+              aria-label="Close event details"
+            >
+              <X size={18} />
+            </button>
+            <span className="section-eyebrow">
+              THE DETAILS THAT SHAPE THE DAY
+            </span>
+            <h2 id="intake-title">Tell us about your celebration.</h2>
+            <p>
+              No personal names or contact details are needed. Your changes stay
+              on this device until you save them.
+            </p>
+            <div className="intake-form">
+              <label>
+                Event name
+                <input
+                  value={intakeDraft.name}
+                  maxLength={100}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({ ...d, name: e.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                Celebration type
+                <select
+                  value={intakeDraft.type}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({
+                      ...d,
+                      type: e.target.value as EventPlan["type"],
+                    }))
+                  }
+                >
+                  <option>Wedding</option>
+                  <option>Birthday</option>
+                  <option>Anniversary</option>
+                  <option>Community event</option>
+                </select>
+              </label>
+              <label>
+                Date
+                <input
+                  type="date"
+                  value={intakeDraft.date}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({ ...d, date: e.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                City
+                <input
+                  value={intakeDraft.city}
+                  maxLength={100}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({ ...d, city: e.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                Guest count
+                <input
+                  type="number"
+                  min="1"
+                  max="10000"
+                  value={intakeDraft.guestCount}
+                  onChange={(e) => {
+                    const nextGuests = Number(e.target.value);
+                    setIntakeDraft((d) => ({
+                      ...d,
+                      guestCount: nextGuests,
+                      budget:
+                        d.guestCount > 0
+                          ? Math.round((d.budget / d.guestCount) * nextGuests)
+                          : d.budget,
+                    }));
+                  }}
+                />
+              </label>
+              <label>
+                Budget
+                <input
+                  type="number"
+                  min="1"
+                  max="1000000000000"
+                  value={intakeDraft.budget}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({
+                      ...d,
+                      budget: Number(e.target.value),
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Currency
+                <select
+                  value={intakeDraft.currency}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({
+                      ...d,
+                      currency: e.target.value as EventPlan["currency"],
+                    }))
+                  }
+                >
+                  <option value="INR">INR · Indian rupee</option>
+                  <option value="USD">USD · US dollar</option>
+                  <option value="EUR">EUR · Euro</option>
+                  <option value="GBP">GBP · Pound sterling</option>
+                </select>
+              </label>
+              <label>
+                Theme
+                <input
+                  value={intakeDraft.theme}
+                  maxLength={100}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({ ...d, theme: e.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                Style
+                <input
+                  value={intakeDraft.style}
+                  maxLength={100}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({ ...d, style: e.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                Preferred language
+                <select
+                  value={intakeDraft.language}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({
+                      ...d,
+                      language: e.target.value as EventPlan["language"],
+                    }))
+                  }
+                >
+                  <option>English</option>
+                  <option>Hindi</option>
+                  <option>Telugu</option>
+                </select>
+              </label>
+              <label className="intake-wide">
+                Preferences
+                <textarea
+                  value={intakeDraft.preferences.join(", ")}
+                  maxLength={600}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({
+                      ...d,
+                      preferences: e.target.value
+                        .split(",")
+                        .map((value) => value.trim())
+                        .filter(Boolean),
+                    }))
+                  }
+                  placeholder="A few things you would love"
+                />
+              </label>
+              <label>
+                Dietary needs
+                <textarea
+                  value={intakeDraft.dietary.join(", ")}
+                  maxLength={400}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({
+                      ...d,
+                      dietary: e.target.value
+                        .split(",")
+                        .map((value) => value.trim())
+                        .filter(Boolean),
+                    }))
+                  }
+                  placeholder="Optional"
+                />
+              </label>
+              <label>
+                Accessibility needs
+                <textarea
+                  value={intakeDraft.accessibility.join(", ")}
+                  maxLength={400}
+                  onChange={(e) =>
+                    setIntakeDraft((d) => ({
+                      ...d,
+                      accessibility: e.target.value
+                        .split(",")
+                        .map((value) => value.trim())
+                        .filter(Boolean),
+                    }))
+                  }
+                  placeholder="Optional"
+                />
+              </label>
+            </div>
+            <div className="intake-guidance">
+              Changing guest count updates the suggested budget at the current
+              cost per guest. You can edit the amount before saving.{" "}
+              {intakeDraft.date !== "" && intakeDraft.date !== event.date && (
+                <b>
+                  Saving the new date will shift open tasks by{" "}
+                  {Math.round(
+                    (new Date(intakeDraft.date + "T00:00:00Z").getTime() -
+                      new Date(event.date + "T00:00:00Z").getTime()) /
+                      86400000,
+                  )}{" "}
+                  days. Completed tasks keep their dates.
+                </b>
+              )}
+            </div>
+            {intakeError && (
+              <p className="form-error" role="alert">
+                {intakeError}
+              </p>
+            )}
+            <div className="modal-foot">
+              <button
+                className="button-secondary"
+                onClick={() => setShowIntake(false)}
+              >
+                Cancel
+              </button>
+              <button className="button-primary" onClick={saveIntake}>
+                Save event details <Check size={15} />
+              </button>
+            </div>
+          </section>
+        </div>
       )}
       {showSim && (
         <div className="modal-backdrop" onClick={() => setShowSim(false)}>

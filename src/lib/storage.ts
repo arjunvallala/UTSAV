@@ -1,16 +1,5 @@
 import { EventSchema, type EventPlan } from "@/domain/schema";
 const KEY = "utsav.event.v1";
-export function loadEvent(): EventPlan | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    return EventSchema.parse(data);
-  } catch {
-    return null;
-  }
-}
 export function eventSnapshot(fallback: string) {
   if (typeof window === "undefined") return fallback;
   return localStorage.getItem(KEY) || fallback;

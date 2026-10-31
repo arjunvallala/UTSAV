@@ -11,6 +11,12 @@ npm run dev
 
 Copy `.env.example` to `.env.local` and add a server-side `GEMINI_API_KEY` to enable Gemini. The app runs without a key using deterministic fallback advice. `GEMINI_MODEL` defaults to `gemini-3.8-flash`.
 
+## Deploy to Netlify
+
+Connect this repository in Netlify. The checked-in `netlify.toml` sets the Next.js build and publish directory; Netlify detects Next.js and applies its managed runtime for App Router pages and API routes. Set `GEMINI_API_KEY` in **Site configuration → Environment variables** to enable the assistant's Gemini responses. Without it, the assistant uses the built-in fallback. `GEMINI_MODEL` is optional. Redeploy after changing environment variables.
+
+Netlify builds use Next.js output for Netlify's runtime, while local and Docker builds retain standalone output.
+
 ## Checks
 
 ```sh

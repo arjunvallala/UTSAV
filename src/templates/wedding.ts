@@ -107,6 +107,8 @@ export const sampleWedding: EventPlan = {
       status: "researching",
       quote: null,
       budget: 624000,
+      deposit: 0,
+      paidAmount: 0,
     },
     {
       id: "v2",
@@ -115,6 +117,8 @@ export const sampleWedding: EventPlan = {
       status: "researching",
       quote: null,
       budget: 720000,
+      deposit: 0,
+      paidAmount: 0,
     },
     {
       id: "v3",
@@ -123,6 +127,8 @@ export const sampleWedding: EventPlan = {
       status: "researching",
       quote: null,
       budget: 336000,
+      deposit: 0,
+      paidAmount: 0,
     },
     {
       id: "v4",
@@ -131,6 +137,8 @@ export const sampleWedding: EventPlan = {
       status: "researching",
       quote: null,
       budget: 240000,
+      deposit: 0,
+      paidAmount: 0,
     },
   ],
   pinnedIdeas: [

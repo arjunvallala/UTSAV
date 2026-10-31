@@ -15,6 +15,21 @@ describe("event planning domain", () => {
     expect(() =>
       EventSchema.parse({ ...sampleWedding, guestCount: 0 }),
     ).toThrow();
+    const legacy = {
+      ...sampleWedding,
+      vendors: sampleWedding.vendors.map((vendor) => ({
+        id: vendor.id,
+        name: vendor.name,
+        category: vendor.category,
+        status: vendor.status,
+        quote: vendor.quote,
+        budget: vendor.budget,
+      })),
+    };
+    expect(EventSchema.parse(legacy).vendors[0].deposit).toBe(0);
+    expect(() =>
+      EventSchema.parse({ ...sampleWedding, date: "not-a-date" }),
+    ).toThrow();
   });
   it("reports explainable readiness", () => {
     const result = readiness(sampleWedding);
@@ -64,6 +79,14 @@ describe("event planning domain", () => {
     expect(
       rescheduleTask(sampleWedding, "missing", "2026-11-10").affected,
     ).toEqual([]);
+    const cyclic = {
+      ...sampleWedding,
+      tasks: [
+        { ...sampleWedding.tasks[1], id: "a", dependsOn: ["b"] },
+        { ...sampleWedding.tasks[2], id: "b", dependsOn: ["a"] },
+      ],
+    };
+    expect(rescheduleTask(cyclic, "a", "2026-11-12").affected).toHaveLength(2);
   });
   it("handles empty plans and completed work", () => {
     const empty = { ...sampleWedding, tasks: [], vendors: [], actualSpend: 0 };
